@@ -1,2 +1,2 @@
 # guide-to-shapeless
-Implementations in the "The Type Astronaut's Guide to Shaepless" book
+Implementations of the "The Type Astronaut's Guide to Shapeless" book
