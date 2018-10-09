@@ -1,24 +1,26 @@
 package hu.szigyi.shapeless.chapters
 
 import hu.szigyi.shapeless.chapters.Chapter322.Model.IceCream
-import shapeless.{:+:, CNil, Coproduct, Generic, HList, HNil}
+import shapeless.{:+:, ::, CNil, Coproduct, Generic, HList, HNil}
 
 object Chapter322 {
 
   object Model {
-    case class Employee(name: String, number: Int, manager: Boolean)
+    case class Employee(name: String, number: Int, manager: Boolean) // String :: Int :: Boolean :: HNil
     case class IceCream(name: String, numCherries: Int, inCone: Boolean)
   }
 
   object Csv {
     import CsvEncoder._
-    implicit val stringEncoder: CsvEncoder[String] = instance(str => List(str))
-    implicit val intEncoder: CsvEncoder[Int] = instance(i => List(i.toString))
-    implicit val booleanEncoder: CsvEncoder[Boolean] = instance(b => if (b) List("yes") else List("no"))
-    implicit val hNilEncoder: CsvEncoder[HNil] = instance(_ => Nil)
+    implicit val stringEncoder: CsvEncoder[String] = instance(str => str)
+    implicit val intEncoder: CsvEncoder[Int] = instance(i => i.toString)
+    implicit val booleanEncoder: CsvEncoder[Boolean] = instance(b => if (b) "yes" else "no")
+    implicit val hNilEncoder: CsvEncoder[HNil] = instance(_ => "")
     implicit def hListEncoder[H, T <: HList](implicit hEncoder: CsvEncoder[H], tEncoder: CsvEncoder[T]): CsvEncoder[H :: T] = instance {
-      case h :: t => hEncoder.encode(h) ++ tEncoder.encode(t)
+      case h :: HNil => hEncoder.encode(h)
+      case h :: t => hEncoder.encode(h) ++ "," ++ tEncoder.encode(t)
     }
+    // IceCream(flavours: "choc|vanilla|" )
 
     //    implicit val iceCreamEncoder: CsvEncoder[IceCream] = {
     //      val gen: Aux[IceCream, String :: Int :: Boolean :: HNil] = Generic[IceCream]
@@ -27,23 +29,26 @@ object Chapter322 {
     //      instance(iceCream => enc.encode(gen.to(iceCream)))
     //    }
     implicit def genericEncoder[A, R](implicit
-                                      gen: Generic.Aux[A, R],
+                                      gen: Generic.Aux[A, R], // Knows how to convert: A => IceCream, R => String :: Int :: Boolean :: HNil
                                       enc: CsvEncoder[R]): CsvEncoder[A] = {
       instance((a: A) => {
-        val repr: R = gen.to(a)
-        enc.encode(repr)
+        val repr: R = gen.to(a) // convert to HList from actual Class
+        enc.encode(repr) // encode HList to List[String]
       })
     }
 
     implicit def writeCsv[A](values: List[A])(implicit enc: CsvEncoder[A]): String =
-      values.map(value => enc.encode(value).mkString(",")).mkString("\n")
+      values.map(value => {
+        val encoded: String = enc.encode(value)
+        encoded
+      }).mkString("\n")
 
     trait CsvEncoder[A] {
-      def encode(value: A): List[String]
+      def encode(value: A): String
     }
     object CsvEncoder {
       def apply[A](implicit enc: CsvEncoder[A]): CsvEncoder[A] = enc
-      def instance[A](func: A => List[String]): CsvEncoder[A] = (value: A) => func(value)
+      def instance[A](func: A => String): CsvEncoder[A] = (value: A) => func(value)
     }
   }
 }
@@ -102,6 +107,6 @@ import Chapter33.Csv._
 import hu.szigyi.shapeless.chapters.Chapter33.Model.{Rectangle, Circle, Shape}
 object App33 extends App {
   val shapes: List[Shape] = List(Rectangle(3.0, 4.0), Circle(1.0))
-  val csvShapes = writeCsv(shapes)
-  println(csvShapes)
+//  val csvShapes = writeCsv[Shape](shapes)
+//  println(csvShapes)
 }
