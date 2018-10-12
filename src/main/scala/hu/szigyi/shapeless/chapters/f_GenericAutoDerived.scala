@@ -1,7 +1,6 @@
 package hu.szigyi.shapeless.chapters
 
-import hu.szigyi.shapeless.chapters.Chapter322.Model.IceCream
-import shapeless.{:+:, ::, CNil, Coproduct, Generic, HList, HNil}
+import shapeless.{:+:, ::, CNil, Coproduct, Generic, HList, HNil, Inl, Inr, Lazy}
 
 object Chapter322 {
 
@@ -54,7 +53,9 @@ object Chapter322 {
 }
 
 object App322 extends App {
+  import hu.szigyi.shapeless.chapters.Chapter322.Model.IceCream
   import hu.szigyi.shapeless.chapters.Chapter322.Csv._
+
   val iceCreams: List[IceCream] = List(
     IceCream("Sundae", 1, false),
     IceCream("Cornetto", 0, true),
@@ -67,6 +68,7 @@ object App322 extends App {
 }
 
 object Chapter33 {
+  import Csv.CsvEncoder._
 
   object Model {
     sealed trait Shape
@@ -76,37 +78,44 @@ object Chapter33 {
 
   object Csv {
     trait CsvEncoder[A] {
-      def encode(value: A): List[String]
+      def encode(value: A): String
     }
     object CsvEncoder {
       def apply[A](implicit enc: CsvEncoder[A]): CsvEncoder[A] = enc
-      def createEncoder[A](func: A => List[String]): CsvEncoder[A] = (value: A) => func(value)
+      def createEncoder[A](func: A => String): CsvEncoder[A] = (value: A) => func(value)
     }
     implicit def writeCsv[A](values: List[A])(implicit enc: CsvEncoder[A]): String =
-      values.map(value => enc.encode(value).mkString(",")).mkString("\n")
+      values.map(value => enc.encode(value)).mkString("\n")
 
-    import Csv.CsvEncoder._
-    implicit val doubleEncoder: CsvEncoder[Double] = createEncoder(value => List(value.toString))
+    implicit val doubleEncoder: CsvEncoder[Double] = createEncoder(value => value.toString)
     implicit val cnilEncoder: CsvEncoder[CNil] = createEncoder(_ => throw new Exception("Inconceivable!"))
-    implicit def coproductEncoder[H, T <: Coproduct](implicit hEncoder: CsvEncoder[H], tEncoder: CsvEncoder[T]): CsvEncoder[H :+: T] = createEncoder {
-      case shapeless.Inl(head) => hEncoder.encode(head)
-      case shapeless.Inr(tail) => tEncoder.encode(tail)
+
+    implicit def hListEncoder[H, T <: HList](implicit hEncoder: Lazy[CsvEncoder[H]], tEncoder: CsvEncoder[T]): CsvEncoder[H :: T] = createEncoder {
+      case h :: HNil => hEncoder.value.encode(h)
+      case h :: t => hEncoder.value.encode(h) ++ "," ++ tEncoder.encode(t)
     }
+
+    implicit def coproductEncoder[H, T <: Coproduct](implicit hEncoder: Lazy[CsvEncoder[H]], tEncoder: CsvEncoder[T]): CsvEncoder[H :+: T] = createEncoder {
+      case Inl(head) => hEncoder.value.encode(head)
+      case Inr(tail) => tEncoder.encode(tail)
+    }
+
     implicit def genericEncoder[A, R](implicit
-                                     gen: Generic.Aux[A, R],
-                                      enc: CsvEncoder[R]): CsvEncoder[A] = {
+                                     gen: Generic.Aux[A, R], // class is converted to coproduct => Rectangle :+: Circle :+: CNil
+                                      enc: Lazy[CsvEncoder[R]]): CsvEncoder[A] = {
       createEncoder((a: A) => {
         val repr = gen.to(a)
-        enc.encode(repr)
+        enc.value.encode(repr)
       })
     }
   }
 }
 
-import Chapter33.Csv._
-import hu.szigyi.shapeless.chapters.Chapter33.Model.{Rectangle, Circle, Shape}
 object App33 extends App {
+  import Chapter33.Csv._
+  import hu.szigyi.shapeless.chapters.Chapter33.Model.{Circle, Rectangle, Shape}
+
   val shapes: List[Shape] = List(Rectangle(3.0, 4.0), Circle(1.0))
-//  val csvShapes = writeCsv[Shape](shapes)
-//  println(csvShapes)
+  val csvShapes = writeCsv[Shape](shapes)
+  println(csvShapes)
 }
