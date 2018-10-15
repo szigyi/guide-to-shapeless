@@ -88,7 +88,8 @@ object Chapter33 {
       values.map(value => enc.encode(value)).mkString("\n")
 
     implicit val doubleEncoder: CsvEncoder[Double] = createEncoder(value => value.toString)
-    implicit val cnilEncoder: CsvEncoder[CNil] = createEncoder(_ => throw new Exception("Inconceivable!"))
+    implicit val hNilEncoder: CsvEncoder[HNil] = createEncoder(_ => "")
+    implicit val cNilEncoder: CsvEncoder[CNil] = createEncoder(_ => throw new Exception("Inconceivable!"))
 
     implicit def hListEncoder[H, T <: HList](implicit hEncoder: Lazy[CsvEncoder[H]], tEncoder: CsvEncoder[T]): CsvEncoder[H :: T] = createEncoder {
       case h :: HNil => hEncoder.value.encode(h)
